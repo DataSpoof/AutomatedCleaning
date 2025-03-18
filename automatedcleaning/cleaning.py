@@ -9,6 +9,15 @@ import warnings
 import math
 import os
 import missingno as msno
+import logging
+
+# Suppress NLTK download messages
+nltk_logger = logging.getLogger('nltk')
+nltk_logger.setLevel(logging.ERROR)
+
+# OR Suppress all warnings in NLTK
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning)
 
 
 import difflib
