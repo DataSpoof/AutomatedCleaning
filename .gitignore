@@ -6,4 +6,4 @@ build/
 *.egg-info/
 *.log
 output/
-*.png
+*.csv
