@@ -1,8 +1,8 @@
 pypi/
+automated "C:\Users\Abhishek\Documents\work\India\Mine_projects\AutomatedCleaning\automatedcleaning\cleaning - Copy.py"
 venv/
 dist/
 build/
 *.egg-info/
 *.log
-output/
-*.csv
+
