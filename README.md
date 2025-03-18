@@ -24,6 +24,8 @@ pip install AutomatedCleaning
 ```
 
 ## Usage
+It requires Claude API key which you can get it from here https://console.anthropic.com/settings/keys
+
 ```bash
 import AutomatedCleaning as ac
 df = ac.load_data("dataset.csv")
