@@ -1,0 +1,8 @@
+pypi/
+venv/
+dist/
+build/
+*.egg-info/
+*.log
+output/
+*.csv
