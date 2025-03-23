@@ -2,7 +2,7 @@
 
 AutomatedCleaning is a Python library for automated data cleaning.It helps preprocess and analyze datasets by handling missing values, outliers, spelling corrections, and more.
 
-![Logo](images/logo1.png)
+![Logo](images/logo2.png)
 
 ## Features
 - Supports both large (100+ GB) and small datasets
