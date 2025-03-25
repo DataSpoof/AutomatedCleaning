@@ -385,9 +385,21 @@ logging.basicConfig(filename="corrections.log", level=logging.INFO, format="%(as
 
 # System prompt for categorical value correction
 CATEGORICAL_CORRECTION_PROMPT = """
-You are a data validation expert. Check if the given categorical values are valid.
-Fix any incorrect values based on context and common categories.
-Return only the corrected values.
+You are a data validation expert. Your task is to correct spelling errors and inconsistencies in categorical values.
+- Ensure all values are standardized and correctly spelled.
+- Return the corrected values **in the same order** as provided.
+- Use a bullet-point format (one value per line).
+
+Example input:
+Column: ProductCategory
+Values: ['elecronics', 'fashon', 'Electronics', 'fasihon', 'home_appl']
+
+Expected output:
+- Electronics
+- Fashion
+- Electronics
+- Fashion
+- Home Appliances
 """
 
 def fix_spelling_errors_in_categorical(df):
@@ -422,8 +434,17 @@ def correct_categorical_values(model, column_name: str, values: list) -> list:
         {"role": "user", "content": text},
     ]
     response = model.invoke(model_input)
-    corrected_values = response.content.split(', ')  # Assuming response returns comma-separated values
+    
+    # Ensure response is properly formatted and split into a clean list
+    corrected_values = response.content.strip().split("\n")
+    
+    # Check if splitting failed (e.g., single string returned)
+    if len(corrected_values) != len(values):
+        logging.warning(f"Unexpected response format for column '{column_name}'. Received: {response.content}")
+        return values  # Return original values if there's an issue
+    
     return corrected_values
+
 
 
 
@@ -917,4 +938,3 @@ def clean_data(df):
 
     df=save_cleaned_data(df)
     return df 
-
