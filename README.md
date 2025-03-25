@@ -26,8 +26,7 @@ AutomatedCleaning is a Python library for automated data cleaning.It helps prepr
 
 ## Installation
 ```bash
-pip install uv
-uv pip install -q AutomatedCleaning
+pip install -q AutomatedCleaning
 ```
 
 ## Usage
