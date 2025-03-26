@@ -30,7 +30,7 @@ pip install AutomatedCleaning==0.1.6
 ```
 
 ## Usage
-It requires Claude API key which you can get it from here https://console.anthropic.com/settings/keys
+It requires Claude API key which you can get it from here https://console.anthropic.com/settings/keys (Optional Step)
 
 ```bash
 import AutomatedCleaning as ac
