@@ -21,12 +21,12 @@ AutomatedCleaning is a Python library for automated data cleaning.It helps prepr
 - Analyzes cardinality in categorical columns
 - Identifies and cleans text columns
 - Detect JSON-type columns
-- Performs univariate, bivariate, and multivariate analysis
+- Performs univariate, bivariate, and multivariate analysis and save in a dashboard
 
 
 ## Installation
 ```bash
-pip install AutomatedCleaning==0.1.6```
+pip install AutomatedCleaning==0.1.6
 ```
 
 ## Usage
