@@ -10,6 +10,9 @@ import math
 import os
 import missingno as msno
 import logging
+import getpass
+from langchain_anthropic import ChatAnthropic
+
 
 # Suppress NLTK download messages
 nltk_logger = logging.getLogger('nltk')
@@ -370,16 +373,6 @@ def fix_spelling_errors_in_columns(df):
     
     return df
 
-
-
-
-import os
-import json
-import polars as pl
-import logging
-import getpass
-from langchain_anthropic import ChatAnthropic
-
 # Initialize logging
 logging.basicConfig(filename="corrections.log", level=logging.INFO, format="%(asctime)s - %(message)s")
 
@@ -400,22 +393,51 @@ Expected output:
 - Electronics
 - Fashion
 - Home Appliances
+
+Example input:
+Column: ProductCategory
+Values: ['good', 'bad', 'goo', 'ba']
+
+Expected output:
+- good
+- bad
+- good
+- bad
+
 """
 
-def fix_spelling_errors_in_categorical(df):
-    """Fix spelling errors in categorical columns using Claude AI."""
-    print_section_header("Fix spelling errors in categorical columns using Claude")
 
-    api_key = getpass.getpass("Enter your Claude API key: ")
-    model = ChatAnthropic(model="claude-3-7-sonnet-latest", api_key=api_key)
+
+def fix_spelling_errors_in_categorical(df):
+    """Fix spelling errors in categorical columns using Claude AI or manual input."""
+    print_section_header("Fix spelling errors in categorical columns")
     
+    user_choice = input("Do you want to correct spelling errors in categorical columns? (yes/no): ").strip().lower()
+    if user_choice not in ["yes", "y"]:
+        print("Skipping spell-checking.")
+        return df
+
+    method_choice = input("Choose correction method: (1) Automatic (Claude AI) (2) Manual: ").strip()
+    
+    if method_choice == "1":
+        api_key = getpass.getpass("Enter your Claude API key: ")
+        model = ChatAnthropic(model="claude-3-7-sonnet-latest", api_key=api_key)
+    else:
+        model = None  # No AI model needed for manual correction
+
     categorical_columns = [col for col in df.columns if df[col].dtype == pl.Utf8]
-    
+
     for col in categorical_columns:
         unique_values = df[col].drop_nulls().unique().to_list()
-        corrected_values = correct_categorical_values(model, col, unique_values)
+        
+        if method_choice == "1":
+            corrected_values = correct_categorical_values(model, col, unique_values)
+        else:
+            corrected_values = manual_correction(col, unique_values)
+        
         correction_map = dict(zip(unique_values, corrected_values))
-        print(f"The unique values are {unique_values} and the fixed values are {corrected_values} ")
+        
+        print(f"\nColumn: {col}\nOriginal Values: {unique_values}\nCorrected Values: {corrected_values}")
 
         # Log corrections
         for old_value, new_value in correction_map.items():
@@ -426,6 +448,7 @@ def fix_spelling_errors_in_categorical(df):
     
     return df
 
+
 def correct_categorical_values(model, column_name: str, values: list) -> list:
     """Corrects categorical column values using Claude AI."""
     text = f"Column: {column_name}\nValues: {', '.join(values)}"
@@ -434,18 +457,28 @@ def correct_categorical_values(model, column_name: str, values: list) -> list:
         {"role": "user", "content": text},
     ]
     response = model.invoke(model_input)
-    
+
     # Ensure response is properly formatted and split into a clean list
     corrected_values = response.content.strip().split("\n")
-    
-    # Check if splitting failed (e.g., single string returned)
+
+    # If response length is incorrect, return original values
     if len(corrected_values) != len(values):
         logging.warning(f"Unexpected response format for column '{column_name}'. Received: {response.content}")
         return values  # Return original values if there's an issue
-    
+
     return corrected_values
 
 
+def manual_correction(column_name: str, values: list) -> list:
+    """Allows user to manually correct categorical values."""
+    corrected_values = []
+    print(f"\nManual correction for column: {column_name}")
+    
+    for val in values:
+        new_val = input(f"Correct '{val}' (press enter to keep it unchanged): ").strip()
+        corrected_values.append(new_val if new_val else val)
+    
+    return corrected_values
 
 
 
@@ -551,6 +584,18 @@ def remove_outliers(df):
 
 import polars as pl
 import polars as pl
+import numpy as np
+
+def check_problem_type(df, target_col):
+    """Determine whether the problem is classification or regression."""
+    unique_values = df[target_col].n_unique()
+    
+    if df[target_col].dtype in [pl.Float32, pl.Float64, pl.Int32, pl.Int64] and unique_values > 10:
+        print(f"Detected a regression problem (continuous target column '{target_col}'). Skipping class balancing.")
+        return "regression"
+    else:
+        print(f"Detected a classification problem (categorical/discrete target column '{target_col}').")
+        return "classification"
 
 def check_and_handle_imbalance(df, target_col):
     """
@@ -563,6 +608,9 @@ def check_and_handle_imbalance(df, target_col):
     Returns:
     - pl.DataFrame: A balanced dataframe
     """
+    
+    if check_problem_type(df, target_col) == "regression":
+        return df  # Skip class balancing if it's a regression problem
     
     # Original Class Distribution
     class_counts = df[target_col].value_counts().sort("count")
@@ -606,7 +654,6 @@ def check_and_handle_imbalance(df, target_col):
         print(df[target_col].value_counts().sort("count"))
 
     return df
-
 
 def check_skewness(df):
     """Check skewness in numerical columns."""
@@ -699,189 +746,122 @@ def save_cleaned_data(df: pl.DataFrame, file_name="cleaned_data.csv", quantize=T
     df.write_csv(file_name)
     print(f"✅ Cleaned data saved to {file_name}")
 
-
-def save_boxplots(df: pl.DataFrame, output_filename="output/boxplots.png"):
-    """
-    Create boxplots for numerical columns in a DataFrame and save the plot as a PNG file.
-    
-    Parameters:
-        df (pl.DataFrame): The input DataFrame.
-        output_filename (str): The filename for saving the boxplots image.
-    """
-    print_section_header("Checking for outliers")
-    
-    # Ensure the output directory exists
-    output_dir = os.path.dirname(output_filename)
-    if output_dir and not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-        print(f"Created directory: {output_dir}")
-    
-    # Select numerical columns
-    numerical_cols = [col for col in df.columns if df[col].dtype in [pl.Int64, pl.Float64]]
-    print(f"Numerical columns found: {numerical_cols}")
-    
-    if not numerical_cols:
-        print("No numerical columns found in the DataFrame.")
-        return
-    
-    # Determine the number of rows and columns for subplots
-    num_cols = len(numerical_cols)
-    cols_per_row = 3
-    num_rows = math.ceil(num_cols / cols_per_row)
-    
-    # Create subplots
-    fig, axes = plt.subplots(num_rows, min(num_cols, cols_per_row), figsize=(15, 5 * num_rows))
-    axes = axes.flatten() if num_cols > 1 else [axes]
-    
-    # Plot boxplots
-    for i, col in enumerate(numerical_cols):
-        axes[i].boxplot(df[col].to_list(), vert=True)
-        axes[i].set_title(f"Boxplot of {col}")
-    
-    # Hide any unused subplots
-    for j in range(i + 1, len(axes)):
-        axes[j].set_visible(False)
-    
-    # Save the plot
-    plt.tight_layout()
-    plt.savefig(output_filename)
-    print(f"Boxplots saved as '{output_filename}'")
-    plt.close()
-
-
-
 import os
+import math
 import plotly.express as px
 import plotly.graph_objects as go
 import polars as pl
+import pandas as pd
 from plotly.subplots import make_subplots
 
-# Define output directory
-OUTPUT_DIR = "output/eda/"
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+def save_dashboard(html_content, filename="dashboard.html"):
+    """Save the dashboard HTML file."""
+    OUTPUT_DIR = "output/eda/"
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    with open(os.path.join(OUTPUT_DIR, filename), "w", encoding="utf-8") as f:
+        f.write(html_content)
 
-def save_plot(fig, filename):
-    """Save the plotly figure to the output directory."""
-    fig.write_image(os.path.join(OUTPUT_DIR, filename))
-
-def univariate_analysis(df):
-    """Perform univariate analysis for numerical and categorical columns."""
-    
-    # Convert Polars DataFrame to Pandas
+def generate_dashboard(df):
+    """Generate an interactive HTML dashboard for EDA."""
     df_pandas = df.to_pandas()
-    print_section_header("Performing Graphical Data Analysis")
-
-    print("\n=== Univariate Analysis ===")
-
-
-    # Select numerical and categorical columns
     num_cols = df.select(pl.col(pl.Float64, pl.Int64)).columns
     cat_cols = df.select(pl.col(pl.Utf8)).columns
+    
+    figures_univariate, figures_bivariate, figures_multivariate = [], [], []
 
-    print("Plotting all the numerical column using Histogram")
-
-    # Subplots for numerical columns
-    fig_num = make_subplots(rows=len(num_cols), cols=1, subplot_titles=[f"Histogram of {col}" for col in num_cols])
-    for i, col in enumerate(num_cols):
-        fig = px.histogram(df_pandas, x=col, nbins=30)
-        for trace in fig.data:
-            fig_num.add_trace(trace, row=i+1, col=1)
-    fig_num.update_layout(title="Univariate Analysis - Numerical", height=300 * len(num_cols))
-    save_plot(fig_num, "univariate_numerical.png")
-
-    # Subplots for categorical columns
-    print("Plotting all the categorical column using barplot")
-
-    fig_cat = make_subplots(rows=len(cat_cols), cols=1, subplot_titles=[f"Category Distribution of {col}" for col in cat_cols])
-    for i, col in enumerate(cat_cols):
+    # Univariate Analysis
+    for col in cat_cols:
         value_counts = df_pandas[col].value_counts().reset_index()
-        value_counts.columns = [col, "count"]  # Rename columns explicitly
-        fig = px.bar(value_counts, x=col, y="count")
-        for trace in fig.data:
-            fig_cat.add_trace(trace, row=i+1, col=1)
-    fig_cat.update_layout(title="Univariate Analysis - Categorical", height=300 * len(cat_cols))
-    save_plot(fig_cat, "univariate_categorical.png")
+        value_counts.columns = [col, "count"]
+        fig = px.bar(value_counts, x=col, y="count", title=f"Bar Plot: {col}")
+        figures_univariate.append(fig)
 
-import itertools
+    for col in num_cols:
+        hist_fig = px.histogram(df_pandas, x=col, title=f"Histogram: {col}")
+        figures_univariate.append(hist_fig)
+        
+        box_fig = px.box(df_pandas, y=col, title=f"Boxplot: {col}")
+        figures_univariate.append(box_fig)
 
-def bivariate_analysis(df):
-    """Perform bivariate analysis for all numerical and categorical column combinations."""
+    # Bivariate Analysis
+    for i in range(len(num_cols)):
+        for j in range(i + 1, len(num_cols)):
+            fig = px.scatter(df_pandas, x=num_cols[i], y=num_cols[j], 
+                             title=f"Scatter Plot: {num_cols[i]} vs {num_cols[j]}")
+            figures_bivariate.append(fig)
+
+    for cat in cat_cols:
+        for num in num_cols:
+            fig = px.histogram(df_pandas, x=num, color=cat, barmode='stack', 
+                               title=f"Histogram: {num} by {cat}")
+            figures_bivariate.append(fig)
+
+    for i in range(len(cat_cols)):
+        for j in range(i + 1, len(cat_cols)):
+            grouped_data = df_pandas.groupby([cat_cols[i], cat_cols[j]]).size().reset_index(name='count')
+            fig = px.bar(grouped_data, x=cat_cols[i], y='count', color=cat_cols[j], barmode='stack',
+                         title=f"Stacked Bar Plot: {cat_cols[i]} vs {cat_cols[j]}")
+            figures_bivariate.append(fig)
+
+    if len(num_cols) > 1:
+        corr_matrix = df_pandas[num_cols].corr()
+        fig = go.Figure(data=go.Heatmap(z=corr_matrix.values, x=corr_matrix.columns, y=corr_matrix.index, colorscale='Blues', zmin=-1, zmax=1))
+        fig.update_layout(title_text="Correlation Heatmap", width=600, height=600)
+        figures_multivariate.append(fig)
+
+    def create_subplot(figures, title):
+        if not figures:
+            return "<p>No plots available.</p>"
+        rows = (len(figures) + 3) // 4
+        cols = min(len(figures), 4)
+        subplot_fig = make_subplots(rows=rows, cols=cols, subplot_titles=[fig.layout.title.text for fig in figures])
+        
+        for i, fig in enumerate(figures):
+            for trace in fig.data:
+                subplot_fig.add_trace(trace, row=(i // 4) + 1, col=(i % 4) + 1)
+        
+        subplot_fig.update_layout(title_text=title, height=500 * rows, width=1500, showlegend=False)
+        return subplot_fig.to_html(full_html=False)
+
+    html_content = f"""
+    <html>
+    <head>
+        <title>Exploratory Data Analysis</title>
+        <style>
+            body {{ font-family: Arial, sans-serif; text-align: center; margin: 20px; }}
+            h1, h2 {{ text-align: center; }}
+            .menu a {{ margin: 15px; text-decoration: none; font-size: 20px; color: blue; }}
+            .menu {{ margin-bottom: 20px; }}
+        </style>
+    </head>
+    <body>
+        <h1>Exploratory Data Analysis</h1>
+        <div class="menu">
+            <a href="#univariate">Univariate Analysis</a>
+            <a href="#bivariate">Bivariate Analysis</a>
+            <a href="#multivariate">Multivariate Analysis</a>
+        </div>
+        <h2 id="univariate">Univariate Analysis</h2>
+        {create_subplot(figures_univariate, "Univariate Analysis")}
+        <h2 id="bivariate">Bivariate Analysis</h2>
+        {create_subplot(figures_bivariate, "Bivariate Analysis")}
+        <h2 id="multivariate">Multivariate Analysis</h2>
+        {create_subplot(figures_multivariate, "Multivariate Analysis")}
+    </body>
+    </html>
+    """
     
-    df_pandas = df.to_pandas()
-    num_cols = df.select(pl.col(pl.Float64, pl.Int64)).columns
-    cat_cols = df.select(pl.col(pl.Utf8)).columns
+    save_dashboard(html_content)
 
-    print("\n=== Bivariate Analysis ===")
 
-    # Scatter Plots for All Pairs of Numerical Columns
-    print("Plotting scatter plot for All Pairs of Numerical Columns")
 
-    num_combinations = list(itertools.combinations(num_cols, 2))
-    if num_combinations:
-        fig_scatter = make_subplots(rows=len(num_combinations), cols=1, 
-                                    subplot_titles=[f"Scatter: {x} vs {y}" for x, y in num_combinations])
-        for i, (x, y) in enumerate(num_combinations):
-            #print(f"Generating Scatter Plot for: {x} vs {y}")
-            fig = px.scatter(df_pandas, x=x, y=y)
-            for trace in fig.data:
-                fig_scatter.add_trace(trace, row=i+1, col=1)
-        fig_scatter.update_layout(title="Bivariate Analysis - Scatter Plots", height=400 * len(num_combinations))
-        save_plot(fig_scatter, "bivariate_scatter_all.png")
-
-    # Histograms for All Numerical vs Categorical Combinations
-    print("Plotting Histograms for All Numerical vs Categorical Combinations")
-
-    num_cat_combinations = list(itertools.product(num_cols, cat_cols))
-    if num_cat_combinations:
-        fig_hist = make_subplots(rows=len(num_cat_combinations), cols=1,
-                                 subplot_titles=[f"Histogram: {num} by {cat}" for num, cat in num_cat_combinations])
-        for i, (num, cat) in enumerate(num_cat_combinations):
-            #print(f"Generating Histogram for: {num} grouped by {cat}")
-            fig = px.histogram(df_pandas, x=num, color=cat)
-            for trace in fig.data:
-                fig_hist.add_trace(trace, row=i+1, col=1)
-        fig_hist.update_layout(title="Bivariate Analysis - Numerical vs Categorical", height=400 * len(num_cat_combinations))
-        save_plot(fig_hist, "bivariate_num_vs_cat_all.png")
-
-    # Stacked Bar Plots for All Categorical Combinations
-    print("Plotting Stacked Bar Plots for All Categorical Combinations")
-
-    cat_combinations = list(itertools.combinations(cat_cols, 2))
-    if cat_combinations:
-        fig_bar = make_subplots(rows=len(cat_combinations), cols=1,
-                                subplot_titles=[f"Stacked Bar: {x} vs {y}" for x, y in cat_combinations])
-        for i, (x, y) in enumerate(cat_combinations):
-            #print(f"Generating Stacked Bar Plot for: {x} vs {y}")
-            fig = px.bar(df_pandas, x=x, color=y)
-            for trace in fig.data:
-                fig_bar.add_trace(trace, row=i+1, col=1)
-        fig_bar.update_layout(title="Bivariate Analysis - Categorical", height=400 * len(cat_combinations))
-        save_plot(fig_bar, "bivariate_cat_vs_cat_all.png")
-
-def multivariate_analysis(df):
-    """Perform multivariate analysis using correlation heatmap."""
-    print("\n=== Multivariate Analysis ===")
-    
-    df_pandas = df.to_pandas()
-    num_cols = df.select(pl.col(pl.Float64, pl.Int64)).columns
-    corr_matrix = df_pandas[num_cols].corr()
-
-    print("Plotting correlation matrix ")
-    fig_corr = make_subplots(rows=1, cols=1, subplot_titles=["Correlation Heatmap"])
-    heatmap = go.Heatmap(z=corr_matrix.values, x=corr_matrix.columns, y=corr_matrix.index, colorscale='Blues', zmin=-1, zmax=1)
-    fig_corr.add_trace(heatmap)
-    fig_corr.update_layout(title="Multivariate Analysis - Correlation Matrix", height=600, width=800)
-
-    save_plot(fig_corr, "multivariate_correlation.png")
-
-import polars as pl
 import json
 
 def fix_json_columns(df: pl.DataFrame) -> pl.DataFrame:
     """Detect and fix JSON-type columns in the Polars DataFrame."""
     print_section_header("Checking and fixing json types of columns")
 
-    print("Detecting and fixing json types of columns")
+    print("Detecting and fixing json types of columns if there are any")
     new_columns = []
 
     for col in df.columns:
@@ -922,7 +902,6 @@ def clean_data(df):
     df = handle_missing_values(df)
     df = handle_duplicates(df)
     check_cardinality(df)
-    save_boxplots(df)
     
     # df = remove_outliers(df)
     df = fix_skewness(df)
@@ -930,9 +909,10 @@ def clean_data(df):
     print_section_header("Enter target column")
     target_col = input("Enter the target column: ")
     df=check_and_handle_imbalance(df,target_col)
-    univariate_analysis(df)
-    bivariate_analysis(df)
-    multivariate_analysis(df)
+    #univariate_analysis(df)
+    #bivariate_analysis(df)
+    #multivariate_analysis(df)
+    generate_dashboard(df)
     df=fix_json_columns(df)
 
 
