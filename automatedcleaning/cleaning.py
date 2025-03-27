@@ -4,7 +4,6 @@ from sklearn.impute import KNNImputer
 from sklearn.preprocessing import LabelEncoder
 import seaborn as sns
 import matplotlib.pyplot as plt
-from spellchecker import SpellChecker
 import warnings
 import math
 import os
@@ -318,6 +317,29 @@ def replace_symbols_and_convert_to_float(df):
     ])
     
     return df
+
+
+
+def replace_symbols(df):
+    """Replace symbols and convert to float using Polars."""
+    
+    # Identify columns containing unwanted symbols
+    problematic_cols = [
+        col for col in df.columns 
+        if df[col].cast(pl.Utf8, strict=False).str.contains(r'[\$,₹,-]', literal=False).any()
+    ]
+    
+    
+    # Replace symbols and convert to float
+    df = df.with_columns([
+        pl.col(col)
+        .str.replace_all(r'[\$,₹,-,•,-,-]', '')  # Remove $, ₹, - symbols
+        .alias(col)
+        for col in problematic_cols
+    ])
+    
+    return df
+
 
 
 def fix_incorrect_data_types(df):
@@ -898,6 +920,7 @@ def clean_data(df):
     df = replace_symbols_and_convert_to_float(df)
     df = fix_spelling_errors_in_columns(df)
     df = fix_spelling_errors_in_categorical(df)
+    df= replace_symbols(df)
     
     df = handle_missing_values(df)
     df = handle_duplicates(df)
