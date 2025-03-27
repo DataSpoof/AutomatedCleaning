@@ -37,3 +37,8 @@ import AutomatedCleaning as ac
 df = ac.load_data("dataset.csv")
 df_cleaned = ac.clean_data(df)
 ```
+
+## Watch the Demo
+
+[![Watch the video](https://img.youtube.com/vi/yA5Tdq22_Yg/0.jpg)](https://www.youtube.com/watch?v=yA5Tdq22_Yg)
+
