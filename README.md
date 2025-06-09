@@ -29,7 +29,7 @@ AutomatedCleaning is a Python library for automated data cleaning.It helps prepr
 ```bash
 python3.11 -m venv .venv
 .venv\Scripts\activate
-uv pip install AutomatedCleaning==0.1.8
+uv pip install AutomatedCleaning==1.1
 ```
 
 ## Usage
