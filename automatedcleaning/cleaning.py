@@ -11,7 +11,14 @@ import missingno as msno
 import logging
 import getpass
 from langchain_anthropic import ChatAnthropic
+import warnings
+import logging
 
+# Suppress warnings
+warnings.filterwarnings("ignore")
+
+# Suppress all logging from Presidio and other libraries
+logging.getLogger().setLevel(logging.ERROR)
 
 # Suppress NLTK download messages
 nltk_logger = logging.getLogger('nltk')
@@ -109,9 +116,9 @@ import nltk
 import json
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
-nltk.download('punkt_tab')
-nltk.download('punkt')  # For tokenization
-nltk.download('stopwords')  # For stopword removal
+nltk.download('punkt_tab',quiet=True)
+nltk.download('punkt',quiet=True)  # For tokenization
+nltk.download('stopwords',quiet=True)  # For stopword removal
 from nltk.stem import WordNetLemmatizer
 
 
@@ -628,7 +635,7 @@ def check_and_handle_imbalance(df, target_col):
     - target_col (str): The name of the target column
     
     Returns:
-    - pl.DataFrame: A balanced dataframe
+    - pl.DataFrame: A balanced dataframe or the original if skipped
     """
     
     if check_problem_type(df, target_col) == "regression":
@@ -646,8 +653,12 @@ def check_and_handle_imbalance(df, target_col):
         print(f"\nThe target column '{target_col}' is **imbalanced**.")
         
         # Ask the user for input
-        method = input("\nChoose a balancing method - 'oversampling' or 'undersampling': ").strip().lower()
+        method = input("\nChoose a balancing method - 'oversampling', 'undersampling', or press Enter to skip: ").strip().lower()
         
+        if method == "":
+            print("\nSkipping class balancing.")
+            return df
+
         balanced_df = []
 
         if method == "oversampling":
@@ -666,7 +677,7 @@ def check_and_handle_imbalance(df, target_col):
                 balanced_df.append(subset)
 
         else:
-            raise ValueError("\nInvalid method. Please choose 'oversampling' or 'undersampling'.")
+            raise ValueError("\nInvalid method. Please choose 'oversampling', 'undersampling', or press Enter to skip.")
 
         # Combine all balanced samples and shuffle
         df = pl.concat(balanced_df).sample(fraction=1.0, shuffle=True)
@@ -770,6 +781,7 @@ def save_cleaned_data(df: pl.DataFrame, file_name="cleaned_data.csv", quantize=T
 
 import os
 import math
+import base64
 import plotly.express as px
 import plotly.graph_objects as go
 import polars as pl
@@ -777,103 +789,355 @@ import pandas as pd
 from plotly.subplots import make_subplots
 
 def save_dashboard(html_content, filename="dashboard.html"):
-    """Save the dashboard HTML file."""
     OUTPUT_DIR = "output/eda/"
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     with open(os.path.join(OUTPUT_DIR, filename), "w", encoding="utf-8") as f:
         f.write(html_content)
 
-def generate_dashboard(df):
-    """Generate an interactive HTML dashboard for EDA."""
+def generate_dashboard(df: pl.DataFrame, background_image_path: str):
     df_pandas = df.to_pandas()
     num_cols = df.select(pl.col(pl.Float64, pl.Int64)).columns
     cat_cols = df.select(pl.col(pl.Utf8)).columns
-    
+
     figures_univariate, figures_bivariate, figures_multivariate = [], [], []
 
-    # Univariate Analysis
+    kpi_html = '<div class="kpi-container">'
+    for col in num_cols[:4]:
+        total = df[col].sum()
+        kpi_html += f'''
+        <div class="kpi-box">
+            <h3>{round(total, 2):,}</h3>
+            <p>Total {col}</p>
+        </div>
+        '''
+    kpi_html += '</div>'
+
     for col in cat_cols:
         value_counts = df_pandas[col].value_counts().reset_index()
         value_counts.columns = [col, "count"]
-        fig = px.bar(value_counts, x=col, y="count", title=f"Bar Plot: {col}")
+        fig = px.bar(value_counts, x=col, y="count", title=f"{col} Distribution", color_discrete_sequence=["#00BFFF"])
+        fig.update_layout(template='plotly_dark', bargap=0.4)
         figures_univariate.append(fig)
 
     for col in num_cols:
-        hist_fig = px.histogram(df_pandas, x=col, title=f"Histogram: {col}")
-        figures_univariate.append(hist_fig)
-        
-        box_fig = px.box(df_pandas, y=col, title=f"Boxplot: {col}")
-        figures_univariate.append(box_fig)
+        fig1 = px.histogram(df_pandas, x=col, title=f"Histogram of {col}", color_discrete_sequence=["#FFA500"])
+        fig1.update_layout(template='plotly_dark', bargap=0.4)
+        figures_univariate.append(fig1)
 
-    # Bivariate Analysis
+        fig2 = px.box(df_pandas, y=col, title=f"Boxplot of {col}", color_discrete_sequence=["#7CFC00"])
+        fig2.update_layout(template='plotly_dark')
+        figures_univariate.append(fig2)
+
     for i in range(len(num_cols)):
         for j in range(i + 1, len(num_cols)):
-            fig = px.scatter(df_pandas, x=num_cols[i], y=num_cols[j], 
-                             title=f"Scatter Plot: {num_cols[i]} vs {num_cols[j]}")
+            fig = px.scatter(df_pandas, x=num_cols[i], y=num_cols[j], title=f"{num_cols[i]} vs {num_cols[j]}", color_discrete_sequence=["#FF69B4"])
+            fig.update_layout(template='plotly_dark')
             figures_bivariate.append(fig)
 
     for cat in cat_cols:
         for num in num_cols:
-            fig = px.histogram(df_pandas, x=num, color=cat, barmode='stack', 
-                               title=f"Histogram: {num} by {cat}")
+            fig = px.histogram(df_pandas, x=num, color=cat, barmode='stack', title=f"{num} by {cat}")
+            fig.update_layout(template='plotly_dark', bargap=0.4)
             figures_bivariate.append(fig)
 
     for i in range(len(cat_cols)):
         for j in range(i + 1, len(cat_cols)):
             grouped_data = df_pandas.groupby([cat_cols[i], cat_cols[j]]).size().reset_index(name='count')
             fig = px.bar(grouped_data, x=cat_cols[i], y='count', color=cat_cols[j], barmode='stack',
-                         title=f"Stacked Bar Plot: {cat_cols[i]} vs {cat_cols[j]}")
+                         title=f"{cat_cols[i]} vs {cat_cols[j]}")
+            fig.update_layout(template='plotly_dark', bargap=0.4)
             figures_bivariate.append(fig)
 
     if len(num_cols) > 1:
         corr_matrix = df_pandas[num_cols].corr()
-        fig = go.Figure(data=go.Heatmap(z=corr_matrix.values, x=corr_matrix.columns, y=corr_matrix.index, colorscale='Blues', zmin=-1, zmax=1))
-        fig.update_layout(title_text="Correlation Heatmap", width=600, height=600)
+        fig = go.Figure(data=go.Heatmap(z=corr_matrix.values, x=corr_matrix.columns,
+                                        y=corr_matrix.index, colorscale='Blues', zmin=-1, zmax=1))
+        fig.update_layout(title="Correlation Heatmap", template='plotly_dark')
         figures_multivariate.append(fig)
+
+    with open(background_image_path, "rb") as image_file:
+        encoded_image = base64.b64encode(image_file.read()).decode()
+
 
     def create_subplot(figures, title):
         if not figures:
             return "<p>No plots available.</p>"
-        rows = (len(figures) + 3) // 4
-        cols = min(len(figures), 4)
-        subplot_fig = make_subplots(rows=rows, cols=cols, subplot_titles=[fig.layout.title.text for fig in figures])
-        
+
+        cols = 3  # Fixed to 3 plots per row
+        rows = math.ceil(len(figures) / cols)
+        safe_spacing = min(0.05, 1 / (rows - 1)) if rows > 1 else 0.05
+
+        subplot_fig = make_subplots(
+            rows=rows, 
+            cols=cols,
+            subplot_titles=[fig.layout.title.text for fig in figures],
+            vertical_spacing=safe_spacing
+        )
+
         for i, fig in enumerate(figures):
             for trace in fig.data:
-                subplot_fig.add_trace(trace, row=(i // 4) + 1, col=(i % 4) + 1)
-        
-        subplot_fig.update_layout(title_text=title, height=500 * rows, width=1500, showlegend=False)
+                row = (i // cols) + 1
+                col = (i % cols) + 1
+                subplot_fig.add_trace(trace, row=row, col=col)
+
+        # Dynamic height: 400px per row (you can adjust 400 to your preference)
+        height = 400 * rows
+
+        subplot_fig.update_layout(
+            title_text=title, 
+            height=height, 
+            width=1500, 
+            showlegend=False, 
+            template='plotly_dark'
+        )
         return subplot_fig.to_html(full_html=False)
+
+
+    def create_bivariate_subplot(figures, title):
+        if not figures:
+            return "<p>No plots available.</p>"
+
+        cols = 3
+        rows = math.ceil(len(figures) / cols)
+
+        # Reduce vertical spacing between rows
+        vertical_spacing = 0.03  # try 0.03 or even 0.02
+
+        subplot_fig = make_subplots(
+            rows=rows,
+            cols=cols,
+            subplot_titles=[fig.layout.title.text for fig in figures],
+            vertical_spacing=vertical_spacing,
+            horizontal_spacing=0.05
+        )
+
+        for i, fig in enumerate(figures):
+            row = (i // cols) + 1
+            col = (i % cols) + 1
+            for trace in fig.data:
+                subplot_fig.add_trace(trace, row=row, col=col)
+
+        base_height_per_row = 400  # reasonable height per row
+        extra_height_padding = 100  # space for title/margin
+
+        height = base_height_per_row * rows + extra_height_padding
+
+        subplot_fig.update_layout(
+            title_text=title,
+            height=height,
+            width=1500,
+            showlegend=False,
+            template='plotly_dark',
+            margin=dict(l=40, r=40, t=80, b=40)
+        )
+
+        return subplot_fig.to_html(full_html=False)
+
+
+    def create_single_plot(figures, title):
+        if not figures:
+            return "<p>No plots available.</p>"
+
+        # Take only the first figure, assuming only one for bivariate/multivariate
+        fig = figures[0]
+
+        fig.update_layout(
+            title_text=title,
+            height=600,
+            width=800,
+            showlegend=True,
+            template='plotly_dark',
+            margin=dict(l=80, r=40, t=80, b=40)
+        )
+
+        return fig.to_html(full_html=False)
+
 
     html_content = f"""
     <html>
     <head>
-        <title>Exploratory Data Analysis</title>
+        <title>PowerBI Styled EDA Dashboard</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
         <style>
-            body {{ font-family: Arial, sans-serif; text-align: center; margin: 20px; }}
-            h1, h2 {{ text-align: center; }}
-            .menu a {{ margin: 15px; text-decoration: none; font-size: 20px; color: blue; }}
-            .menu {{ margin-bottom: 20px; }}
+            body {{
+                font-family: Segoe UI, sans-serif;
+                margin: 0;
+                padding: 0;
+                background-image: url("data:image/png;base64,{encoded_image}");
+                background-size: cover;
+                background-position: center;
+                color: white;
+            }}
+            h1 {{
+                color: #FFFFFF;
+                text-align: center;
+                padding-top: 20px;
+                text-shadow: 1px 1px 2px #000;
+            }}
+            .navbar {{
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: center;
+                background-color: rgba(0,0,0,0.7);
+                padding: 10px 0;
+                position: sticky;
+                top: 0;
+                z-index: 1000;
+            }}
+            .navbar button {{
+                background-color: #00BFFF;
+                border: none;
+                color: white;
+                padding: 10px 20px;
+                margin: 5px;
+                cursor: pointer;
+                font-size: 16px;
+                border-radius: 5px;
+                transition: background-color 0.3s;
+            }}
+            .navbar button:hover {{
+                background-color: #009ACD;
+            }}
+            .section {{
+                display: none;
+                padding: 20px;
+            }}
+            .active {{
+                display: block;
+            }}
+            .kpi-container {{
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: 10px;
+                padding: 0 20px;
+            }}
+            .kpi-box {{
+                background-color: rgba(0,0,0,0.6);
+                padding: 20px;
+                border-radius: 10px;
+                width: 200px;
+                text-align: center;
+                box-shadow: 0 0 10px #333;
+            }}
+            .kpi-box h3 {{
+                font-size: 28px;
+                margin: 0;
+                color: #00FFFF;
+            }}
+            .kpi-box p {{
+                font-size: 16px;
+                margin: 5px 0 0 0;
+                color: #CCCCCC;
+            }}
+            .user-input {{
+                text-align: center;
+                padding: 20px;
+            }}
+            .user-input input {{
+                padding: 10px;
+                font-size: 16px;
+                border-radius: 5px;
+                width: 250px;
+                margin-right: 10px;
+            }}
+            .user-input button {{
+                padding: 10px 20px;
+                font-size: 16px;
+                background-color: #00BFFF;
+                border: none;
+                border-radius: 5px;
+                color: white;
+                cursor: pointer;
+            }}
+            .user-charts {{
+                margin-top: 20px;
+            }}
         </style>
+        <script>
+            function showSection(sectionId) {{
+                var sections = document.getElementsByClassName('section');
+                for (var i = 0; i < sections.length; i++) {{
+                    sections[i].classList.remove('active');
+                }}
+                document.getElementById(sectionId).classList.add('active');
+            }}
+
+            function generatePieChart(columnName) {{
+                const data = JSON.parse(document.getElementById('data-json').textContent);
+                if (!data.hasOwnProperty(columnName)) {{
+                    alert('Invalid column name!');
+                    return;
+                }}
+                const values = data[columnName];
+                const counts = values.reduce((acc, val) => {{
+                    acc[val] = (acc[val] || 0) + 1;
+                    return acc;
+                }}, {{}});
+
+                const labels = Object.keys(counts);
+                const vals = Object.values(counts);
+
+                const pieData = [{{
+                    type: 'pie',
+                    labels: labels,
+                    values: vals
+                }}];
+
+                const layout = {{
+                    title: 'Pie Chart of ' + columnName,
+                    paper_bgcolor: 'rgba(0,0,0,0.5)',
+                    font: {{ color: 'white' }}
+                }};
+
+                const divId = 'pie_' + columnName + '_' + Math.floor(Math.random() * 100000);
+                const chartDiv = document.createElement('div');
+                chartDiv.id = divId;
+                chartDiv.style.marginTop = '30px';
+                document.getElementById('user-charts').appendChild(chartDiv);
+                Plotly.newPlot(divId, pieData, layout);
+            }}
+
+            window.onload = function() {{
+                showSection('univariate');
+            }};
+        </script>
     </head>
     <body>
-        <h1>Exploratory Data Analysis</h1>
-        <div class="menu">
-            <a href="#univariate">Univariate Analysis</a>
-            <a href="#bivariate">Bivariate Analysis</a>
-            <a href="#multivariate">Multivariate Analysis</a>
+        <h1>Power BI Styled EDA Dashboard</h1>
+
+        {kpi_html}
+
+        <div class="navbar">
+            <button onclick="showSection('univariate')">Univariate</button>
+            <button onclick="showSection('bivariate')">Bivariate</button>
+            <button onclick="showSection('multivariate')">Multivariate</button>
         </div>
-        <h2 id="univariate">Univariate Analysis</h2>
-        {create_subplot(figures_univariate, "Univariate Analysis")}
-        <h2 id="bivariate">Bivariate Analysis</h2>
-        {create_subplot(figures_bivariate, "Bivariate Analysis")}
-        <h2 id="multivariate">Multivariate Analysis</h2>
-        {create_subplot(figures_multivariate, "Multivariate Analysis")}
+
+        <div id="univariate" class="section">
+            <h2>Univariate Analysis</h2>
+            {create_subplot(figures_univariate, "Univariate Analysis")}
+        </div>
+
+        <div id="bivariate" class="section">
+            <h2>Bivariate Analysis</h2>
+            {create_bivariate_subplot(figures_bivariate, "Bivariate Analysis")}
+        </div>
+
+        <div id="multivariate" class="section">
+            <h2>Multivariate Analysis</h2>
+            {create_single_plot(figures_multivariate, "Multivariate Analysis")}
+        </div>
+
+        
+       
     </body>
     </html>
     """
-    
+
     save_dashboard(html_content)
+
 
 
 
@@ -913,31 +1177,113 @@ def fix_json_columns(df: pl.DataFrame) -> pl.DataFrame:
     return df
 
 
-def clean_data(df):
+import polars as pl
+from typing import Dict, List
+from presidio_analyzer import AnalyzerEngine, RecognizerResult
+from presidio_anonymizer import AnonymizerEngine
+import warnings
+import logging
+
+# Suppress logs and warnings
+warnings.filterwarnings("ignore")
+logging.getLogger().setLevel(logging.ERROR)
+
+def detect_and_mask_pii_polars(df: pl.DataFrame, sample_size: int = 10) -> pl.DataFrame:
+    """
+    Detects and masks PII in a Polars DataFrame.
+
+    Args:
+        df (pl.DataFrame): Input Polars DataFrame.
+        sample_size (int): Number of rows to sample for PII detection.
+
+    Returns:
+        pl.DataFrame: DataFrame with masked PII columns added.
+    """
+    print_section_header("Checking for any PII types in columns and masking them")
+
+    analyzer = AnalyzerEngine()
+    anonymizer = AnonymizerEngine()
+    pii_columns: Dict[str, List[str]] = {}
+
+    # Step 1: Detect PII columns using sampling
+    for col in df.columns:
+        col_data = df[col].drop_nulls().cast(str)
+        if len(col_data) == 0:
+            continue
+        sample = col_data.sample(min(sample_size, len(col_data)), seed=42)
+        detected_types = set()
+
+        for value in sample.to_list():
+            results = analyzer.analyze(text=value, language='en')
+            for r in results:
+                detected_types.add(r.entity_type)
+
+        if detected_types:
+            pii_columns[col] = list(detected_types)
+
+    # Print detected columns info or message if none found
+    if pii_columns:
+        print("Detected PII types in columns:")
+        for col, types in pii_columns.items():
+            print(f" - Column '{col}': {types}")
+    else:
+        print("No PII columns detected in the dataset.")
+
+    # Step 2: Mask PII in detected columns
+    df_dict = df.to_dict(as_series=False)  # Convert to dict for easy row-wise updates
+
+    for col in pii_columns:
+        masked_values = []
+        for text in df_dict[col]:
+            text = str(text) if text is not None else ""
+            results = analyzer.analyze(text=text, language='en')
+            if results:
+                masked = anonymizer.anonymize(text=text, analyzer_results=results).text
+                masked_values.append(masked)
+            else:
+                masked_values.append(text)
+
+        df_dict[f"{col}_masked"] = masked_values
+
+    return pl.DataFrame(df_dict)
+
+
+
+def clean_data(df, background_image_path=None):
     """Main function to clean the data."""
-    df=detect_column_types_and_process_text(df)
+    df = detect_column_types_and_process_text(df)
     df = handle_negative_values(df)
     df = replace_symbols_and_convert_to_float(df)
     df = fix_spelling_errors_in_columns(df)
     df = fix_spelling_errors_in_categorical(df)
-    df= replace_symbols(df)
-    
+    df = replace_symbols(df)
+
     df = handle_missing_values(df)
     df = handle_duplicates(df)
     check_cardinality(df)
-    
+
     # df = remove_outliers(df)
     df = fix_skewness(df)
-    df=check_multicollinearity(df)
-    print_section_header("Enter target column")
-    target_col = input("Enter the target column: ")
-    df=check_and_handle_imbalance(df,target_col)
-    #univariate_analysis(df)
-    #bivariate_analysis(df)
-    #multivariate_analysis(df)
-    generate_dashboard(df)
-    df=fix_json_columns(df)
+    df = check_multicollinearity(df)
 
+    print_section_header("Enter target column (or press Enter to skip)")
+    target_col = input("Enter the target column: ").strip()
+    
+    if target_col:
+        if target_col in df.columns:
+            df = check_and_handle_imbalance(df, target_col)
+        else:
+            print(f"⚠️ Warning: '{target_col}' not found in columns. Skipping imbalance handling.")
+    else:
+        print("ℹ️ Skipping target column–based imbalance check.")
 
-    df=save_cleaned_data(df)
-    return df 
+    # Optional dashboard background
+    if background_image_path:
+        generate_dashboard(df, background_image_path=background_image_path)
+    else:
+        generate_dashboard(df)
+
+    df = fix_json_columns(df)
+    masked_df = detect_and_mask_pii_polars(df)
+    df = save_cleaned_data(masked_df)
+    return df
