@@ -8,8 +8,7 @@
     "phone": "+91-8318238637",
     "description": "We are an edtech startup on a mission to simplify data science and business intelligence through automation. Our flagship project focuses on intelligent data cleaning and instant dashboard generation — making data analysis as easy as clicking a button.",
     "webpageUrl": {
-      "url": "https://www.dataspoof.info",
-      "wellKnown": ""
+      "url": "https://www.dataspoof.info"
     }
   },
   "projects": [
@@ -21,8 +20,7 @@
         "url": "https://github.com/DataSpoof/AutomatedCleaning/"
       },
       "repositoryUrl": {
-        "url": "https://github.com/DataSpoof/AutomatedCleaning",
-        "wellKnown": ""
+        "url": "https://github.com/DataSpoof/AutomatedCleaning"
       },
       "licenses": ["spdx:MIT"],
       "tags": ["data-cleaning", "automation", "AI", "powerbi", "auto-dashboard", "ETL"]
