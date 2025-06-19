@@ -8,12 +8,12 @@
     "phone": "+91-8318238637",
     "description": "We are an edtech startup on a mission to simplify data science and business intelligence through automation. Our flagship project focuses on intelligent data cleaning and instant dashboard generation — making data analysis as easy as clicking a button.",
     "webpageUrl": {
-      "url": "https://www.dataspoof.info"
+      "url": "https://github.com/DataSpoof/AutomatedCleaning/blob/main/json/funding.json"
     }
   },
   "projects": [
     {
-      "guid": "AutomatedCleaning",
+      "guid": "automated-cleaning",
       "name": "AutomatedCleaning",
       "description": "It is an AI-powered tool that automatically cleans messy datasets — whether they come from Excel, CSVs, or databases — and transforms them into actionable dashboards similar to Power BI. It supports anomaly detection, column type inference, imputation, duplicate resolution, and intelligent chart generation.\n\nDesigned for non-tech users and analysts, AutomatedCleaning reduces days of manual work to minutes.",
       "webpageUrl": {
