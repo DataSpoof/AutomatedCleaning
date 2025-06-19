@@ -1,7 +1,7 @@
 {
   "version": "v1.0.0",
   "entity": {
-    "type": "company",
+    "type": "organisation",
     "role": "maintainer",
     "name": "Abhishek Kumar Singh",
     "email": "abhishek@dataspoof.info",
