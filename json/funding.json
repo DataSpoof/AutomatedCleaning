@@ -1,0 +1,99 @@
+{
+  "version": "v1.0.0",
+  "entity": {
+    "type": "organisation",
+    "role": "maintainer",
+    "name": "Abhishek Kumar Singh",
+    "email": "abhishek@dataspoof.info",
+    "phone": "+91-8318238637",
+    "description": "We are an edtech startup on a mission to simplify data science and business intelligence through automation. Our flagship project focuses on intelligent data cleaning and instant dashboard generation — making data analysis as easy as clicking a button.",
+    "webpageUrl": {
+      "url": "https://www.dataspoof.info",
+      "wellKnown": ""
+    }
+  },
+  "projects": [
+    {
+      "guid": "AutomatedCleaning",
+      "name": "AutomatedCleaning",
+      "description": "It is an AI-powered tool that automatically cleans messy datasets — whether they come from Excel, CSVs, or databases — and transforms them into actionable dashboards similar to Power BI. It supports anomaly detection, column type inference, imputation, duplicate resolution, and intelligent chart generation.\n\nDesigned for non-tech users and analysts, AutomatedCleaning reduces days of manual work to minutes.",
+      "webpageUrl": {
+        "url": "https://github.com/DataSpoof/AutomatedCleaning/"
+      },
+      "repositoryUrl": {
+        "url": "https://github.com/DataSpoof/AutomatedCleaning",
+        "wellKnown": ""
+      },
+      "licenses": ["spdx:MIT"],
+      "tags": ["data-cleaning", "automation", "AI", "powerbi", "auto-dashboard", "ETL"]
+    }
+  ],
+  "funding": {
+    "channels": [
+      {
+        "guid": "directbank",
+        "type": "bank",
+        "address": "",
+        "description": "Will accept direct bank transfers. Please e-mail me for details."
+      },
+      {
+        "guid": "paypal",
+        "type": "payment-provider",
+        "address": "https://www.paypal.me/Abhi958",
+        "description": "Support us on PayPal for making any donations."
+      }
+    ],
+    "plans": [
+      {
+        "guid": "hosting-monthly",
+        "status": "active",
+        "name": "Hosting Support",
+        "description": "Covers our cloud and server hosting costs to keep the platform running smoothly.",
+        "amount": 250,
+        "currency": "USD",
+        "frequency": "monthly",
+        "channels": ["directbank", "paypal"]
+      },
+      {
+        "guid": "developer-time",
+        "status": "active",
+        "name": "Developer Compensation",
+        "description": "Helps us pay a part-time developer to maintain and improve the product.",
+        "amount": 1000,
+        "currency": "USD",
+        "frequency": "monthly",
+        "channels": ["directbank", "paypal"]
+      },
+      {
+        "guid": "angel-plan",
+        "status": "active",
+        "name": "Goodwill Plan",
+        "description": "Pay any amount you wish to show support for open innovation in data automation.",
+        "amount": 0,
+        "currency": "USD",
+        "frequency": "one-time",
+        "channels": ["directbank", "paypal"]
+      },
+      {
+        "guid": "scaleup-boost",
+        "status": "active",
+        "name": "Scale-Up Supporter",
+        "description": "A generous one-time contribution of $10,000 will directly support platform scaling, hiring full-time engineers, and launching new enterprise-grade features.",
+        "amount": 10000,
+        "currency": "USD",
+        "frequency": "one-time",
+        "channels": ["directbank", "paypal"]
+      }
+    ],
+    "history": [
+      {
+        "year": 2024,
+        "income": 0,
+        "expenses": 0,
+        "taxes": 0,
+        "currency": "USD",
+        "description": "We're just getting started — your support will help build the future of automated analytics."
+      }
+    ]
+  }
+}
