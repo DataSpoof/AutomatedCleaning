@@ -2,7 +2,7 @@
   "version": "v1.0.0",
   "entity": {
     "type": "organisation",
-    "role": "maintainer",
+    "role": "owner",
     "name": "Abhishek Kumar Singh",
     "email": "abhishek@dataspoof.info",
     "phone": "+91-8318238637",
